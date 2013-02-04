@@ -7,22 +7,9 @@ import socket
 import argparse
 import subprocess
 import gangliacomm
+import serial_control
 
 LEDS_PER_RACK = 58
-
-def serialWriteWithZeroPadding(sigfigs, value, ser):
-
-    #Don't need to send any padding 0's if value is only one digit in length
-    if(sigfigs != 1):
-        val_size = len(str(value))
-
-        padding_size = sigfigs - val_size
-
-        for num in range(0,padding_size):
-            ser.write(str(0))
-            time.sleep(.2)
-
-    ser.write(str(value))    
 
 def main():
 
@@ -59,7 +46,8 @@ def main():
     node_name = args.node_name
 
     #Write mode to Arduino
-    serialWriteWithZeroPadding(1, mode, ser)
+    #Mode is only one digit
+    serial_control.serialWriteWithZeroPadding(1, mode, ser)
 
     if(mode == 1):
         gangliacomm.getMetrics(host_ip, port, num_racks, user_metric, node_name, ser)
@@ -67,10 +55,8 @@ def main():
         if(color == ""):
             #default color is red
             color = 127,0,0
-        else:
-            color = color.split(',')
-            for num in color:
-                print num
+
+        color = color.split(',')
 
         time.sleep(.2)
         ser.write(str(unichr(int(color[0]))))

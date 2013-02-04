@@ -2,7 +2,11 @@
 #include "SPI.h"
 #include "Time.h"
 
-#define MAX_LEDS 1200
+#define DATAPIN 2
+#define CLOCKPIN 3
+
+//#define MAX_LEDS 1200
+#define MAX_LEDS 200
 
 #define RECV_MODE 0
 #define METRIC_SETUP 1
@@ -88,17 +92,12 @@ void setup() {
   uint8_t byte4 = (Serial.read() - 48);
   num_leds = byte1*1000 + byte2*100 + byte3*10 + byte4;
   
-  Serial.println(byte1);
-  Serial.println(byte2);
-  Serial.println(byte3);
-  Serial.println(byte4);
-  
   Serial.print("Num leds: ");
   Serial.println(num_leds);
   
   //Second parameter is data pin, third paramter is clock pin
   //these can be assigned to any pin on the Arduino
-  strip = LPD8806(num_leds, 2, 3);
+  strip = LPD8806(num_leds, DATAPIN, CLOCKPIN);
   Serial.print("This is num pixels: ");
   Serial.println(strip.numPixels());
   Serial.flush();
@@ -233,8 +232,6 @@ void loop()
       strip.show();   
 
       needToUpdate = false;
-
-      //Serial.flush();
 
       state = RECV_MODE;  
 

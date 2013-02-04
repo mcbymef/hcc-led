@@ -6,22 +6,9 @@ import re
 import socket
 import argparse
 import subprocess
+import serial_control
 
-LEDS_PER_RACK = 58
-
-def serialWriteWithZeroPadding(sigfigs, value, ser):
-
-    #Don't need to send any padding 0's if value is only one digit in length
-    if(sigfigs != 1):
-        val_size = len(str(value))
-
-        padding_size = sigfigs - val_size
-
-        for num in range(0,padding_size):
-            ser.write(str(0))
-            time.sleep(.2)
-
-    ser.write(str(value))   
+LEDS_PER_RACK = 58  
 
 def main():
 
@@ -48,7 +35,9 @@ def main():
             exit(1)
 
     #Write number of leds to Arduino
-    serialWriteWithZeroPadding(4, num_leds, ser)
+    #Max number of LEDS is 1200 which is 4 digits long hence, number of LEDs is always
+    #send to the Arduino as a 4 digit number
+    serial_control.serialWriteWithZeroPadding(4, num_leds, ser)
 
 if __name__ == "__main__":
     main()

@@ -7,17 +7,10 @@ import socket
 import argparse
 import subprocess
 import random
+import serial_control
 from operator import itemgetter
 
 LEDS_PER_RACK = 58
-
-def sendZeroPadding(value, ser):
-
-    if(value <= 9):
-        ser.write(str(0))
-        ser.write(str(0))
-    elif(value <= 99):
-        ser.write(str(0))
 
 def main():
 
@@ -29,7 +22,7 @@ def main():
     parser.add_argument('-n', '--node_name', help="Names of the node you wish to get temperature from as listed on Ganglia. This can be the exact name or a regular expression using Python syntax.", default="", type=str)
 
     #Parse the arguments passed to the program
-    args = parser.parse_args();
+    args = parser.parse_args()
 
     #Set up a serial connection to the Arduino
     try:
@@ -138,7 +131,7 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
 
     if(host_count == 0):
         print "No metrics found. Please ensure the parameters you have entered are correct."
-        exit(1);
+        exit(1)
 
     #Find unique Identifier for each rack (this will be the 3rd octet of the IP)
     rack_ID = []
@@ -161,16 +154,10 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
 
     temp_max = max(nonzero_temps)
 
-    #send temp range to arduino
-    sendZeroPadding(temp_min, ser)
-    ser.write(str(temp_min))
+    #send temp range to arduino, temp range is always 3 digits
+    serial_control.serialWriteWithZeroPadding(3, temp_min, ser)
 
-    time.sleep(.2)
-
-    sendZeroPadding(temp_max, ser)
-    ser.write(str(temp_max))
-
-    time.sleep(.2)
+    serial_control.serialWriteWithZeroPadding(3, temp_max, ser)
 
     print temp_min
     print temp_max
@@ -178,7 +165,7 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
     i = 0
 
     for node in sortedtemps:
-	print node
+	   print node
 
     #Need a counter to start from the rack ID and count up sequentially
     dummy_rack_counter = rack_ID[0]
@@ -186,6 +173,8 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
     #also need a separate index for the rack_ID array because it will likely have
     #a different number of elements than racks specified
     actual_rack_counter = 0
+
+    node_index = 0
 
     #For each rack
     for r in range(num_racks):
@@ -212,9 +201,11 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
             upper_led_count = (node_count - LEDS_PER_RACK % node_count) * (int)(LEDS_PER_RACK / node_count)
 
             p=0
-            node_index = 0
+            
 
             while(p < LEDS_PER_RACK):
+
+                print(node_index)
 
                 temp = sortedtemps[node_index][2]
 
@@ -228,14 +219,9 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
                 for num in range(0, leds_per_node):
                     pixel_number = (r * LEDS_PER_RACK) + p + 1
 
-                    sendZeroPadding(temp, ser)
-                    ser.write(str(temp))    
+                    serial_control.serialWriteWithZeroPadding(3, temp, ser)
 
-                    sendZeroPadding(pixel_number, ser)
-                    ser.write(str(pixel_number))   
-
-                    #delay between writes to the Arduino, otherwise data gets corrupted
-                    time.sleep(.2)
+                    serial_control.serialWriteWithZeroPadding(3, pixel_number, ser)
 
                     p += 1
 
@@ -252,28 +238,20 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
                 for num in range(0,2):
                     pixel_number = (r * LEDS_PER_RACK) + p + 1
     
-                    sendZeroPadding(temp, ser)
-                    ser.write(str(temp))    
+                    serial_control.serialWriteWithZeroPadding(3, temp, ser)
 
-                    sendZeroPadding(pixel_number, ser)
-                    ser.write(str(pixel_number))   
+                    serial_control.serialWriteWithZeroPadding(3, pixel_number, ser) 
 
-                    #delay between writes to the Arduino, otherwise data gets corrupted
-                    time.sleep(.2)
                     p += 1
 
             temp = random.randint(temp_min, temp_max)
 
             for num in range(p,58):
                 pixel_number = (r * LEDS_PER_RACK) + num + 1
-                sendZeroPadding(temp, ser)
-                ser.write(str(temp))    
 
-                sendZeroPadding(pixel_number, ser)
-                ser.write(str(pixel_number))   
+                serial_control.serialWriteWithZeroPadding(3, temp, ser)
 
-                #delay between writes to the Arduino, otherwise data gets corrupted
-                time.sleep(.2)
+                serial_control.serialWriteWithZeroPadding(3, pixel_number, ser)  
 
         dummy_rack_counter += 1
 
