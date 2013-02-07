@@ -8,8 +8,9 @@ import argparse
 import subprocess
 import gangliacomm
 import serial_control
+import constants
 
-LEDS_PER_RACK = 58
+LEDS_PER_RACK = constants.leds_per_rack
 
 def main():
 
@@ -54,7 +55,7 @@ def main():
     elif(mode == 2 or mode == 3):
         if(color == ""):
             #default color is red
-            color = 127,0,0
+            color = "127,0,0"
 
         color = color.split(',')
 

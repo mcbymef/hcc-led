@@ -7,8 +7,9 @@ import socket
 import argparse
 import subprocess
 import serial_control
+import constants
 
-LEDS_PER_RACK = 58  
+LEDS_PER_RACK = constants.leds_per_rack
 
 def main():
 

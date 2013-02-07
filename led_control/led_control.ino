@@ -5,8 +5,8 @@
 #define DATAPIN 2
 #define CLOCKPIN 3
 
-//#define MAX_LEDS 1200
-#define MAX_LEDS 200
+#define MAX_LEDS 1200
+#define LEDS_PER_RACK 110
 
 #define RECV_MODE 0
 #define METRIC_SETUP 1
@@ -14,6 +14,7 @@
 #define ONE_COLOR_MODE 2
 #define COLOR_CHASE_MODE 3
 #define COLOR_WHEEL_MODE 4
+#define WATERFALL_MODE 5
 
 #define BLUE 0x00
 #define GREEN 0x01
@@ -283,6 +284,26 @@ void loop()
     rainbowCycle(10);
     state = RECV_MODE;
   }
+  else if (state == WATERFALL_MODE) 
+  {
+    while(!info_available) {
+       if(Serial.available() == 3) {
+         info_available = 1; 
+       }
+     }
+     
+     uint8_t r = Serial.read();
+     uint8_t g = Serial.read();
+     uint8_t b = Serial.read();
+    
+     for(uint8_t i = 0; i < 5; i++) {
+       waterfallChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 20);    
+     }
+     info_available = 0;
+     
+     state = RECV_MODE;  
+    
+  }    
 }
 
 void pixelUpdate(int i, int j, int delta, boolean heatup)
@@ -491,6 +512,37 @@ void colorChase(uint32_t c, uint8_t wait) {
   }
 
   strip.show(); // Refresh to turn off last pixel
+}
+
+void waterfallChase(uint32_t c, uint8_t wait) {
+   int i;
+
+   //start by turning all pixels off:
+   for(i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
+
+   //Then display one pixel on each side of the strip at a time:
+   for(i = 0; i < strip.numPixels(); i++) {
+     int racknum = i/LEDS_PER_RACK + 1;
+     int altpixel = (LEDS_PER_RACK * racknum) - 1 - (i % LEDS_PER_RACK);
+ 
+     int diff = altpixel - i;     
+
+     strip.setPixelColor(i, c);
+     if(diff < 26 || diff > 32) {
+         strip.setPixelColor(altpixel, c);
+     }
+
+     strip.show();
+
+     strip.setPixelColor(i,0);
+     if(diff < 26 || diff > 32) {
+         strip.setPixelColor(altpixel,0);
+     }
+
+     delay(wait);
+   }
+
+  strip.show();
 }
 
 /* Helper functions */

@@ -8,9 +8,10 @@ import argparse
 import subprocess
 import random
 import serial_control
+import constants
 from operator import itemgetter
 
-LEDS_PER_RACK = 58
+LEDS_PER_RACK = constants.leds_per_rack
 
 def main():
 
@@ -204,8 +205,6 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
             
 
             while(p < LEDS_PER_RACK):
-
-                print(node_index)
 
                 temp = sortedtemps[node_index][2]
 
