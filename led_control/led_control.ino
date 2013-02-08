@@ -14,7 +14,7 @@
 #define ONE_COLOR_MODE 2
 #define COLOR_CHASE_MODE 3
 #define COLOR_WHEEL_MODE 4
-#define WATERFALL_MODE 5
+#define WATERFALL_MODE 6
 
 #define BLUE 0x00
 #define GREEN 0x01
@@ -297,7 +297,7 @@ void loop()
      uint8_t b = Serial.read();
     
      for(uint8_t i = 0; i < 5; i++) {
-       waterfallChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 20);    
+       waterfallChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 500);    
      }
      info_available = 0;
      
@@ -528,15 +528,24 @@ void waterfallChase(uint32_t c, uint8_t wait) {
      int diff = altpixel - i;     
 
      strip.setPixelColor(i, c);
-     if(diff < 26 || diff > 32) {
-         strip.setPixelColor(altpixel, c);
+     
+     if(diff <= 49) {
+       strip.setPixelColor(altpixel, c);
+     } else if (diff >= 59) {
+       strip.setPixelColor(altpixel - 4, c);
      }
+     
+     Serial.println(altpixel);
+     Serial.println(i);
 
      strip.show();
 
      strip.setPixelColor(i,0);
-     if(diff < 26 || diff > 32) {
-         strip.setPixelColor(altpixel,0);
+     
+     if(diff <= 49){
+       strip.setPixelColor(altpixel,0);
+     } else if (diff >= 59) {
+       strip.setPixelColor(altpixel - 4, 0);
      }
 
      delay(wait);
