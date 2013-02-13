@@ -10,12 +10,14 @@ import gangliacomm
 import serial_control
 import constants
 
-LEDS_PER_RACK = constants.leds_per_rack
-
 def main():
 
+    LEDS_PER_RACK = constants.leds_per_rack
+
+    modes_dict = {'ganglia':1, 'fill': 3, 'wipe': 4, 'chase': 5, 'rainbow': 6, 'waterfall':7} 
+
     parser = argparse.ArgumentParser(description = 'Control the LEDs set up on the RED racks.')
-    parser.add_argument('mode', help="Mode of operation: \n\t1) Map Ganglia metrics to the LEDs \n\t2) Set all LEDs to one color \n\t 3) Color Chase \n\t 4) Rainbow Wheel", type=int)
+    parser.add_argument('mode', help="Mode of operation: \n\tganglia - Map Ganglia metrics to the LEDs \n\t fill - fill the entire strip with one color \n\t wipe - wipe the entire strip (turn off) \n\t chase - chase a single pixel across the entire strip \n\t rainbow - Rainbow Wheel \n\t waterfall - waterfall mode", type=str)
     parser.add_argument('racks', help="Number of racks with LEDS being controlled.", type=int)
     parser.add_argument('-c', '--color', help="Color to set when using mode 2 or mode 3 (set all LEDs to one color and Color chase). Format is: R,G,B where each value is an integer between 0 and 127, inclusive.", default="",type=str)
     parser.add_argument('-o', '--host_ip', help="Host IP of the cluster to gather Ganglia metrics from.")
@@ -44,15 +46,22 @@ def main():
     host_ip = args.host_ip
     port = args.port
     user_metric = args.metric
-    node_name = args.node_name
+    node_name = args.node_name 
 
+    try:
+        #retrieve mode number
+        intmode = modes_dict[mode]
+    except:
+        print("Unrecognized mode. Please enter valid mode.");
+        exit(1)
+    
     #Write mode to Arduino
     #Mode is only one digit
-    serial_control.serialWriteWithZeroPadding(1, mode, ser)
+    serial_control.serialWriteWithZeroPadding(1, intmode, ser)
 
-    if(mode == 1):
+    if(mode == 'ganglia'):
         gangliacomm.getMetrics(host_ip, port, num_racks, user_metric, node_name, ser)
-    elif(mode == 2 or mode == 3):
+    elif(mode == 'fill' or mode == 'chase' or mode == 'waterfall'):
         if(color == ""):
             #default color is red
             color = "127,0,0"

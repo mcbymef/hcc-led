@@ -4,17 +4,19 @@
 
 #define DATAPIN 2
 #define CLOCKPIN 3
-
+ 
 #define MAX_LEDS 1200
 #define LEDS_PER_RACK 110
 
 #define RECV_MODE 0
 #define METRIC_SETUP 1
-#define METRIC_MODE 5
-#define ONE_COLOR_MODE 2
-#define COLOR_CHASE_MODE 3
-#define COLOR_WHEEL_MODE 4
-#define WATERFALL_MODE 6
+#define METRIC_MODE 2
+#define COLOR_FILL_MODE 3
+#define COLOR_WIPE_MODE 4
+#define COLOR_CHASE_MODE 5
+#define RAINBOW_WHEEL_MODE 6
+#define WATERFALL_MODE 7
+#define LAFORGE_MODE 8
 
 #define BLUE 0x00
 #define GREEN 0x01
@@ -239,7 +241,7 @@ void loop()
       Serial.println("changing state");
     }
   } 
-  else if (state == ONE_COLOR_MODE)
+  else if (state == COLOR_FILL_MODE)
   {
      while(!info_available) {
        if(Serial.available() == 3) {
@@ -251,13 +253,19 @@ void loop()
      uint8_t g = Serial.read();
      uint8_t b = Serial.read();
      
-     colorWipe(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 10);
+     colorFill(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 10);
          
      strip.show();
      
      info_available = 0;
     
      state = RECV_MODE;
+  }
+  else if (state == COLOR_WIPE_MODE) {
+    colorFill(strip.Color(0,0,0), 10);
+    strip.show();
+    
+    state = RECV_MODE;
   }
   else if (state == COLOR_CHASE_MODE)
   {
@@ -271,15 +279,12 @@ void loop()
      uint8_t g = Serial.read();
      uint8_t b = Serial.read();
     
-     for(uint8_t i = 0; i < 5; i++) {
-       colorChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 20);
-       colorWipe(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 20);
-     }
+     colorChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 20);
      info_available = 0;
      
      state = RECV_MODE;
   }
-  else if (state == COLOR_WHEEL_MODE)
+  else if (state == RAINBOW_WHEEL_MODE)
   {
     rainbowCycle(10);
     state = RECV_MODE;
@@ -296,14 +301,34 @@ void loop()
      uint8_t g = Serial.read();
      uint8_t b = Serial.read();
     
-     for(uint8_t i = 0; i < 5; i++) {
-       waterfallChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 500);    
-     }
+     waterfallChase(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 10);    
+     
      info_available = 0;
      
-     state = RECV_MODE;  
+     state = RECV_MODE;   
+  }
+  else if (state == LAFORGE_MODE)
+  {
     
-  }    
+    while(!info_available) {
+       if(Serial.available() == 3) {
+         info_available = 1; 
+       }
+     }
+     
+     uint8_t r = Serial.read();
+     uint8_t g = Serial.read();
+     uint8_t b = Serial.read();
+   
+     int i;
+  
+   for(i = 0; i < 5; i++) {
+    laforgeMode(strip.Color(r/INTENSITY, g/INTENSITY, b/INTENSITY), 10);
+   }
+    info_available = 0;
+    
+    state = RECV_MODE;  
+  }
 }
 
 void pixelUpdate(int i, int j, int delta, boolean heatup)
@@ -486,7 +511,7 @@ void rainbowCycle(uint8_t wait) {
 }
 
 // Fill the dots progressively along the strip.
-void colorWipe(uint32_t c, uint8_t wait) {
+void colorFill(uint32_t c, uint8_t wait) {
   int i;
 
   for (i=0; i < strip.numPixels(); i++) {
@@ -521,34 +546,207 @@ void waterfallChase(uint32_t c, uint8_t wait) {
    for(i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
 
    //Then display one pixel on each side of the strip at a time:
-   for(i = 0; i < strip.numPixels(); i++) {
-     int racknum = i/LEDS_PER_RACK + 1;
-     int altpixel = (LEDS_PER_RACK * racknum) - 1 - (i % LEDS_PER_RACK);
+   int numracks = strip.numPixels()/LEDS_PER_RACK;
+   
+   for(i = 0; i < numracks; i++) {
+
+     //i is the rack number
+     int pixle_offset = i * LEDS_PER_RACK;
+     int altpixel = 109 + offset;
+     int primarypixel = 0 + offset;
+     
+     while(altpixel >= 0 + offset && primarypixel <= 109 + offset) {
+       
+       if(altpixel >= 84 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel, c);
+         
+       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
+         strip.setPixelColor(primarypixel,c);
+         
+       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel,c);
+         
+       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
+         strip.setPixelColor(altpixel,c);
+
+       } else if (altpixel < 25 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel, c);
+       }
+         
+       strip.show();
+       
+     if(altpixel >= 84 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel, 0);
+         altpixel--;
+         primarypixel++;
+       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
+         strip.setPixelColor(primarypixel,0);
+         primarypixel++;
+       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel,0);
+         altpixel--;
+         primarypixel++;
+       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
+         strip.setPixelColor(altpixel,0);
+         altpixel--;
+       } else if (altpixel < 25 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel, 0);
+         altpixel--;
+         primarypixel++;
+       }
+     delay(wait);       
+     }
+   }
+
+  strip.show();
+}
+
+void laforgeMode(uint32_t c, uint8_t wait) {
+   int i;
+
+   //start by turning all pixels off:
+   for(i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
+
+   //Then display one pixel on each side of the strip at a time:
+   int numracks = strip.numPixels()/LEDS_PER_RACK;
+   
+   for(i = 0; i < numracks; i++) {
+
+     //i is the rack number
+     int offset = i * LEDS_PER_RACK;
+     int altpixel = 109;
+     int primarypixel = 0;
+     int bottomprimarypixel = 57;
+     int bottomaltpixel = 58;
+     
+     unsigned char flag = 0;
+     
+     while(altpixel + offset >= 0 && primarypixel <= 109 + offset) {
+       
+       if(altpixel >= 84 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel, c);      
+         strip.setPixelColor(bottomprimarypixel, c);
+         strip.setPixelColor(bottomaltpixel,c);
+         
+       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(bottomprimarypixel,c);
+         
+       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel,c);
+         strip.setPixelColor(bottomprimarypixel, c);
+         strip.setPixelColor(bottomaltpixel,c);
+         
+       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
+         strip.setPixelColor(altpixel,c);
+         strip.setPixelColor(bottomaltpixel,c);
+
+       } else if (altpixel < 25 + offset) {
+         strip.setPixelColor(primarypixel,c);
+         strip.setPixelColor(altpixel, c);
+         strip.setPixelColor(bottomprimarypixel, c);
+         strip.setPixelColor(bottomaltpixel,c);
+       }
+         
+         
+         
+       strip.show();
  
-     int diff = altpixel - i;     
-
-     strip.setPixelColor(i, c);
-     
-     if(diff <= 49) {
-       strip.setPixelColor(altpixel, c);
-     } else if (diff >= 59) {
-       strip.setPixelColor(altpixel - 4, c);
+       
+     if(altpixel >= 84 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel, 0);
+         strip.setPixelColor(bottomprimarypixel, 0);
+         strip.setPixelColor(bottomaltpixel,0);
+         
+         altpixel--;
+         primarypixel++;
+         
+         if(bottomprimarypixel > 0 + offset && !flag) {
+          bottomprimarypixel--;
+         } else {
+          bottomprimarypixel++;
+         }
+         
+         if(bottomaltpixel < 109 + offset && !flag) {
+          bottomaltpixel++;
+         } else {
+           bottomaltpixel--;
+         }
+         
+       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(bottomprimarypixel,0);
+         primarypixel++;
+         if(bottomprimarypixel > 0 + offset && !flag) {
+          bottomprimarypixel--;
+         } else {
+          bottomprimarypixel++;
+         }
+       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel,0);
+         strip.setPixelColor(bottomprimarypixel,0);
+         strip.setPixelColor(bottomaltpixel,0);
+         altpixel--;
+         primarypixel++;
+         
+         if(bottomprimarypixel > 0 + offset && !flag) {
+          bottomprimarypixel--;
+         } else {
+          bottomprimarypixel++;
+         }
+         
+         if(bottomaltpixel < 109 + offset && !flag) {
+          bottomaltpixel++;
+         } else {
+           bottomaltpixel--;
+         }
+       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
+         strip.setPixelColor(altpixel,0);
+         altpixel--;
+         strip.setPixelColor(bottomaltpixel,0);
+         
+         if(bottomaltpixel < 109 + offset && !flag) {
+          bottomaltpixel++;
+         } else {
+           bottomaltpixel--;
+         }
+       } else if (altpixel < 25 + offset) {
+         strip.setPixelColor(primarypixel,0);
+         strip.setPixelColor(altpixel, 0);
+         strip.setPixelColor(bottomprimarypixel,0);
+         strip.setPixelColor(bottomaltpixel,0);
+         
+         altpixel--;
+         primarypixel++;
+         
+         if(bottomprimarypixel > 0 + offset && !flag) {
+          bottomprimarypixel--;
+         } else {
+          bottomprimarypixel++;
+         }
+         
+         if(bottomaltpixel < 109 + offset && !flag) {
+          bottomaltpixel++;
+         } else {
+           bottomaltpixel--;
+         }
+       }
+       
+      if(bottomprimarypixel == 0 + offset || bottomaltpixel == 109 + offset) {
+        flag = 1;
+      }
+     delay(wait);       
      }
-     
-     Serial.println(altpixel);
-     Serial.println(i);
-
-     strip.show();
-
-     strip.setPixelColor(i,0);
-     
-     if(diff <= 49){
-       strip.setPixelColor(altpixel,0);
-     } else if (diff >= 59) {
-       strip.setPixelColor(altpixel - 4, 0);
-     }
-
-     delay(wait);
    }
 
   strip.show();
