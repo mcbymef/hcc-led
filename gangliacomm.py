@@ -11,7 +11,8 @@ import serial_control
 import constants
 from operator import itemgetter
 
-LEDS_PER_RACK = constants.leds_per_rack
+LEDS_PER_RACK = constants.ganglia_leds
+
 
 def main():
 
@@ -32,7 +33,7 @@ def main():
     except:
         try:
             #Try ttyACM1 second
-            ser = serial.Serial('/dev/ttyACM1', 115200)
+            ser = serial.Serial('/dev/ttyACM2', 115200)
         except:
             print "Unable to open Arduino device. Please ensure the device is connected to the computer."
             exit(1)
@@ -182,6 +183,8 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
 
         node_count = 0
 
+        rackoffset = r * constants.handle_side_leds
+
         #Assuming that racks are placed from left to right with ascending third IP octet
         #Because we will not get metrics from some racks, it is possible to identify holes
         #based on the third octed of the IP 
@@ -218,6 +221,10 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
                 for num in range(0, leds_per_node):
                     pixel_number = (r * LEDS_PER_RACK) + p + 1
 
+                    ##This script only sends info for 58 LEDS, real rack has 110
+                    ##Thus, if we're on the second rack need to offset the pixel number to account for this
+                    pixel_number = pixel_number + rackoffset
+
                     serial_control.serialWriteWithZeroPadding(3, temp, ser)
 
                     serial_control.serialWriteWithZeroPadding(3, pixel_number, ser)
@@ -236,7 +243,9 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
 
                 for num in range(0,2):
                     pixel_number = (r * LEDS_PER_RACK) + p + 1
-    
+   
+                    pixel_number = pixel_number + rackoffset
+ 
                     serial_control.serialWriteWithZeroPadding(3, temp, ser)
 
                     serial_control.serialWriteWithZeroPadding(3, pixel_number, ser) 
@@ -247,6 +256,8 @@ def getMetrics(host_ip, port, num_racks, user_metric, node_name, ser):
 
             for num in range(p,58):
                 pixel_number = (r * LEDS_PER_RACK) + num + 1
+
+                pixel_number = pixel_number + rackoffset
 
                 serial_control.serialWriteWithZeroPadding(3, temp, ser)
 

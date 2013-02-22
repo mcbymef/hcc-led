@@ -35,7 +35,7 @@ def main():
     except:
         try:
             #Try ttyACM1 second
-            ser = serial.Serial('/dev/ttyACM1', 115200)
+            ser = serial.Serial('/dev/ttyACM2', 115200)
         except:
             print "Unable to open Arduino device. Please ensure the device is connected to the computer."
             exit(1)
@@ -54,7 +54,7 @@ def main():
     except:
         print("Unrecognized mode. Please enter valid mode.");
         exit(1)
-    
+    #time.sleep(10) 
     #Write mode to Arduino
     #Mode is only one digit
     serial_control.serialWriteWithZeroPadding(1, intmode, ser)

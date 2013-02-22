@@ -30,7 +30,7 @@ def main():
     except:
         try:
             #Try ttyACM1 second
-            ser = serial.Serial('/dev/ttyACM1', 115200)
+            ser = serial.Serial('/dev/ttyACM2', 115200)
         except:
             print "Unable to open Arduino device. Please ensure the device is connected to the computer."
             exit(1)

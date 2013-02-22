@@ -1,11 +1,8 @@
 #include "LPD8806.h"
 #include "SPI.h"
 #include "Time.h"
-
-#define DATAPIN 2
-#define CLOCKPIN 3
  
-#define MAX_LEDS 1200
+#define MAX_LEDS 2200
 #define LEDS_PER_RACK 110
 
 #define RECV_MODE 0
@@ -16,7 +13,6 @@
 #define COLOR_CHASE_MODE 5
 #define RAINBOW_WHEEL_MODE 6
 #define WATERFALL_MODE 7
-#define LAFORGE_MODE 8
 
 #define BLUE 0x00
 #define GREEN 0x01
@@ -74,11 +70,28 @@ inline uint8_t setDelta(uint16_t index, uint8_t deltaValue) {
 }
 
 uint16_t num_leds = 0;
+uint8_t num_racks = 0;
 unsigned char info_available = 0;
 
-LPD8806 strip;
+LPD8806 strip = LPD8806();
 
 void setup() {
+  
+  XMCRA = _BV(SRE); //Enable external memory interface
+  pinMode(38, OUTPUT);
+  digitalWrite(38, LOW); //Enable RAM device
+  
+  //Select Bank 0 - this extends the RAM to ~ 56KB
+  pinMode(42, OUTPUT);
+  pinMode(43, OUTPUT);
+  pinMode(44, OUTPUT);
+  digitalWrite(42, LOW);
+  digitalWrite(43, LOW);
+  digitalWrite(44, LOW);
+  
+  //Keeps the Arduino as Master in SPI communication
+  pinMode(53, OUTPUT);
+  
   Serial.begin(115200);	// opens serial port, sets data rate to 115200 bps
   
   //Recieve number of LEDS from the python script
@@ -94,13 +107,12 @@ void setup() {
   uint8_t byte3 = (Serial.read() - 48);
   uint8_t byte4 = (Serial.read() - 48);
   num_leds = byte1*1000 + byte2*100 + byte3*10 + byte4;
-  
-  Serial.print("Num leds: ");
-  Serial.println(num_leds);
+ 
+  num_racks = num_leds / LEDS_PER_RACK;
   
   //Second parameter is data pin, third paramter is clock pin
   //these can be assigned to any pin on the Arduino
-  strip = LPD8806(num_leds, DATAPIN, CLOCKPIN);
+  strip = LPD8806(num_leds);
   Serial.print("This is num pixels: ");
   Serial.println(strip.numPixels());
   Serial.flush();
@@ -119,6 +131,8 @@ void setup() {
 
   info_available = 0;
 
+  Serial.print("Num racks: ");
+  Serial.println(num_racks);
   state = RECV_MODE;
 }
 
@@ -212,23 +226,35 @@ void loop()
 
       for(uint8_t j = 0; j < 128; j++)
       { 
-        for(uint16_t i = 0; i < num_leds; i++)
+        for(uint8_t i = 0; i < num_racks; i++)
         {
-          if(getCurrColor(colors[i]) - getPrevColor(colors[i]) < 0)
-          {
-            heatup = false;              
-          }
-          else
-          {
-            heatup = true;
-          }
 
-          if(getCurrColor(colors[i]) - getPrevColor(colors[i]) != 0 && getDelta(i) != 0)
-          {   
-            pixelUpdate(i, j, getDelta(i), heatup);
-          }     
+          for(uint16_t k = 0; k < 58; k++) {
+            
+            int pixelnum = k + (52 * i);
+
+            if(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]) < 0)
+            {
+              heatup = false;              
+            }
+            else
+            {
+              heatup = true;
+            }
+
+            Serial.print("Color diff: ");
+            Serial.println(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]));
+            Serial.print("Delta: ");
+            Serial.println(getDelta(pixelnum));
+
+            if(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]) != 0 && getDelta(pixelnum) != 0)
+            {   
+              pixelUpdate(pixelnum, j, getDelta(pixelnum), heatup);
+            }   
+          }  
         }
         strip.show();
+        //Processing time for a full strip will make this delay unnecesary I believe
         delay(10); 
       }
 
@@ -307,6 +333,7 @@ void loop()
      
      state = RECV_MODE;   
   }
+  /*
   else if (state == LAFORGE_MODE)
   {
     
@@ -328,27 +355,44 @@ void loop()
     info_available = 0;
     
     state = RECV_MODE;  
-  }
+  }*/
 }
 
-void pixelUpdate(int i, int j, int delta, boolean heatup)
+void pixelUpdate(int pixelnum, uint8_t j, int delta, boolean heatup)
 {  
+  Serial.println("IN PIXEL UPDATE");
   num_iters = 128/delta + 1;
-
+  
+  int relativepixelnum = pixelnum % 110;
+  
+  int crosspixel = ((58 - relativepixelnum) * 2 - 1) + pixelnum;
+  
+  if(relativepixelnum < 26) crosspixel -= 6;
+  
+  if(j == 0) {
+  Serial.print("Pixelnum: ");
+  Serial.println(pixelnum);
+  Serial.print("Crosspixel: ");
+  Serial.println(crosspixel);
+  }
+  
   if(heatup)
   {
-    switch(getPrevColor(colors[i]))
+    switch(getPrevColor(colors[pixelnum]))
     {
     case 0: //Blue 
       resolution = 127.0/(num_iters-1);
 
       if(resolution * j < 127) 
       {
-        strip.setPixelColor(i, strip.Color(0, (resolution*j)/INTENSITY, (127 - resolution*j)/INTENSITY));
+        strip.setPixelColor(pixelnum, strip.Color(0, (resolution*j)/INTENSITY, (127 - resolution*j)/INTENSITY));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+        strip.setPixelColor(crosspixel, strip.Color(0, (resolution*j)/INTENSITY, (127 - resolution*j)/INTENSITY));
+        }
       }
       else
       {
-        colors[i] = setPrevColor(colors[i], GREEN);
+        colors[pixelnum] = setPrevColor(colors[pixelnum], GREEN);
       }
       break;
     case 1: //Green
@@ -357,11 +401,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if((j%num_iters)*resolution < 127)
       {
-        strip.setPixelColor(i, strip.Color( resolution*(j % (num_iters)/INTENSITY), 127/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color( resolution*(j % (num_iters)/INTENSITY), 127/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color( resolution*(j % (num_iters)/INTENSITY), 127/INTENSITY, 0));
+        }  
       }
       else
       {
-        colors[i] = setPrevColor(colors[i], YELLOW);
+        colors[pixelnum] = setPrevColor(colors[pixelnum], YELLOW);
       }
       break;
     case 2: //Yellow      
@@ -370,11 +417,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if((resolution * (j % num_iters)) < 87)
       {
-        strip.setPixelColor(i, strip.Color(127/INTENSITY, (127 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color(127/INTENSITY, (127 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color(127/INTENSITY, (127 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        }
       }
       else
       {
-        colors[i] = setPrevColor(colors[i], ORANGE);
+        colors[pixelnum] = setPrevColor(colors[pixelnum], ORANGE);
       }
       break;
     case 3: //Orange  
@@ -383,11 +433,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if((resolution * (j % num_iters)) < 40)
       {
-        strip.setPixelColor(i, strip.Color(127/INTENSITY, (40 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color(127/INTENSITY, (40 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color(127/INTENSITY, (40 - (resolution * (j % num_iters)))/INTENSITY, 0));
+        }
       }
       else
       {
-        colors[i] = setPrevColor(colors[i], RED);
+        colors[pixelnum] = setPrevColor(colors[pixelnum], RED);
       }
       break;
     }
@@ -395,7 +448,7 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
   else
   {  
     //Now we are cooling down
-    switch(getPrevColor(colors[i]))
+    switch(getPrevColor(colors[pixelnum]))
     {                   
 
     case 1: //Green
@@ -404,11 +457,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if(resolution * (j % num_iters) < 127) 
       {
-        strip.setPixelColor(i, strip.Color(0, (127 - (resolution * (j % num_iters)))/INTENSITY, (resolution * (j % num_iters))/INTENSITY));
+        strip.setPixelColor(pixelnum, strip.Color(0, (127 - (resolution * (j % num_iters)))/INTENSITY, (resolution * (j % num_iters))/INTENSITY));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color(0, (127 - (resolution * (j % num_iters)))/INTENSITY, (resolution * (j % num_iters))/INTENSITY));
+        }
       }
       else
       {
-        colors[i] = setPrevColor(colors[i], BLUE);
+        colors[pixelnum] = setPrevColor(colors[pixelnum], BLUE);
       }
       break;
     case 2: //Yellow
@@ -417,11 +473,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if(resolution * (j % num_iters) < 127) 
       {
-        strip.setPixelColor(i, strip.Color((127 - (resolution * (j % num_iters)))/INTENSITY, 127/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color((127 - (resolution * (j % num_iters)))/INTENSITY, 127/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color((127 - (resolution * (j % num_iters)))/INTENSITY, 127/INTENSITY, 0));
+        }
       }
       else
       {
-       colors[i] = setPrevColor(colors[i], GREEN);
+       colors[pixelnum] = setPrevColor(colors[pixelnum], GREEN);
       }
       break;
     case 3: //Orange
@@ -430,11 +489,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if(resolution * (j % num_iters) < 87) 
       {
-        strip.setPixelColor(i, strip.Color(127/INTENSITY, (40 + (resolution * (j % num_iters)))/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color(127/INTENSITY, (40 + (resolution * (j % num_iters)))/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color(127/INTENSITY, (40 + (resolution * (j % num_iters)))/INTENSITY, 0));
+        }
       }
       else
       {
-       colors[i] = setPrevColor(colors[i], YELLOW);
+       colors[pixelnum] = setPrevColor(colors[pixelnum], YELLOW);
       }
       break;
     case 4: //Red
@@ -443,11 +505,14 @@ void pixelUpdate(int i, int j, int delta, boolean heatup)
 
       if( j * resolution < 40)
       {
-        strip.setPixelColor(i, strip.Color(127/INTENSITY, (j*resolution)/INTENSITY, 0));
+        strip.setPixelColor(pixelnum, strip.Color(127/INTENSITY, (j*resolution)/INTENSITY, 0));
+        if( relativepixelnum <= 25 || relativepixelnum >= 32) {
+          strip.setPixelColor(crosspixel, strip.Color(127/INTENSITY, (j*resolution)/INTENSITY, 0));
+        }
       }
       else
       {
-       colors[i] = setPrevColor(colors[i], ORANGE);
+       colors[pixelnum] = setPrevColor(colors[pixelnum], ORANGE);
       }
       break;      
     }   
@@ -482,6 +547,11 @@ void updateColorsArrays()
     {        
       colors[i] = setCurrColor(colors[i], BLUE);
     }
+    
+    
+    Serial.print("Current color: ");
+    Serial.println(colors[i]);
+    
   }
 }  
 
@@ -551,7 +621,7 @@ void waterfallChase(uint32_t c, uint8_t wait) {
    for(i = 0; i < numracks; i++) {
 
      //i is the rack number
-     int pixle_offset = i * LEDS_PER_RACK;
+     int offset = i * LEDS_PER_RACK;
      int altpixel = 109 + offset;
      int primarypixel = 0 + offset;
      
@@ -600,151 +670,6 @@ void waterfallChase(uint32_t c, uint8_t wait) {
          altpixel--;
          primarypixel++;
        }
-     delay(wait);       
-     }
-   }
-
-  strip.show();
-}
-
-void laforgeMode(uint32_t c, uint8_t wait) {
-   int i;
-
-   //start by turning all pixels off:
-   for(i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
-
-   //Then display one pixel on each side of the strip at a time:
-   int numracks = strip.numPixels()/LEDS_PER_RACK;
-   
-   for(i = 0; i < numracks; i++) {
-
-     //i is the rack number
-     int offset = i * LEDS_PER_RACK;
-     int altpixel = 109;
-     int primarypixel = 0;
-     int bottomprimarypixel = 57;
-     int bottomaltpixel = 58;
-     
-     unsigned char flag = 0;
-     
-     while(altpixel + offset >= 0 && primarypixel <= 109 + offset) {
-       
-       if(altpixel >= 84 + offset) {
-         strip.setPixelColor(primarypixel,c);
-         strip.setPixelColor(altpixel, c);      
-         strip.setPixelColor(bottomprimarypixel, c);
-         strip.setPixelColor(bottomaltpixel,c);
-         
-       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
-         strip.setPixelColor(primarypixel,c);
-         strip.setPixelColor(bottomprimarypixel,c);
-         
-       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
-         strip.setPixelColor(primarypixel,c);
-         strip.setPixelColor(altpixel,c);
-         strip.setPixelColor(bottomprimarypixel, c);
-         strip.setPixelColor(bottomaltpixel,c);
-         
-       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
-         strip.setPixelColor(altpixel,c);
-         strip.setPixelColor(bottomaltpixel,c);
-
-       } else if (altpixel < 25 + offset) {
-         strip.setPixelColor(primarypixel,c);
-         strip.setPixelColor(altpixel, c);
-         strip.setPixelColor(bottomprimarypixel, c);
-         strip.setPixelColor(bottomaltpixel,c);
-       }
-         
-         
-         
-       strip.show();
- 
-       
-     if(altpixel >= 84 + offset) {
-         strip.setPixelColor(primarypixel,0);
-         strip.setPixelColor(altpixel, 0);
-         strip.setPixelColor(bottomprimarypixel, 0);
-         strip.setPixelColor(bottomaltpixel,0);
-         
-         altpixel--;
-         primarypixel++;
-         
-         if(bottomprimarypixel > 0 + offset && !flag) {
-          bottomprimarypixel--;
-         } else {
-          bottomprimarypixel++;
-         }
-         
-         if(bottomaltpixel < 109 + offset && !flag) {
-          bottomaltpixel++;
-         } else {
-           bottomaltpixel--;
-         }
-         
-       } else if (altpixel < 84 + offset && primarypixel <= 31 + offset) { //This is the handle area where it gets weird
-         strip.setPixelColor(primarypixel,0);
-         strip.setPixelColor(bottomprimarypixel,0);
-         primarypixel++;
-         if(bottomprimarypixel > 0 + offset && !flag) {
-          bottomprimarypixel--;
-         } else {
-          bottomprimarypixel++;
-         }
-       } else if (altpixel < 84 + offset && primarypixel < 84 + offset) {
-         strip.setPixelColor(primarypixel,0);
-         strip.setPixelColor(altpixel,0);
-         strip.setPixelColor(bottomprimarypixel,0);
-         strip.setPixelColor(bottomaltpixel,0);
-         altpixel--;
-         primarypixel++;
-         
-         if(bottomprimarypixel > 0 + offset && !flag) {
-          bottomprimarypixel--;
-         } else {
-          bottomprimarypixel++;
-         }
-         
-         if(bottomaltpixel < 109 + offset && !flag) {
-          bottomaltpixel++;
-         } else {
-           bottomaltpixel--;
-         }
-       } else if (primarypixel >= 84 + offset && altpixel >= 25 + offset) {//This is the second weird handle part
-         strip.setPixelColor(altpixel,0);
-         altpixel--;
-         strip.setPixelColor(bottomaltpixel,0);
-         
-         if(bottomaltpixel < 109 + offset && !flag) {
-          bottomaltpixel++;
-         } else {
-           bottomaltpixel--;
-         }
-       } else if (altpixel < 25 + offset) {
-         strip.setPixelColor(primarypixel,0);
-         strip.setPixelColor(altpixel, 0);
-         strip.setPixelColor(bottomprimarypixel,0);
-         strip.setPixelColor(bottomaltpixel,0);
-         
-         altpixel--;
-         primarypixel++;
-         
-         if(bottomprimarypixel > 0 + offset && !flag) {
-          bottomprimarypixel--;
-         } else {
-          bottomprimarypixel++;
-         }
-         
-         if(bottomaltpixel < 109 + offset && !flag) {
-          bottomaltpixel++;
-         } else {
-           bottomaltpixel--;
-         }
-       }
-       
-      if(bottomprimarypixel == 0 + offset || bottomaltpixel == 109 + offset) {
-        flag = 1;
-      }
      delay(wait);       
      }
    }
