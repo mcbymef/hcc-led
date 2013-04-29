@@ -1,6 +1,7 @@
 #include "LPD8806.h"
 #include "SPI.h"
 #include "Time.h"
+#include "xmem.h"
  
 #define MAX_LEDS 2200
 #define LEDS_PER_RACK 110
@@ -41,9 +42,9 @@ uint8_t temp, pixel, low, high;
 uint8_t lowgreen, lowyellow, highyellow, highorange;
 uint8_t num_iters = 0;
 uint8_t state;
-uint8_t currTemp[MAX_LEDS];
-uint8_t delta[MAX_LEDS/2];
-unsigned char colors[MAX_LEDS];
+uint8_t* currTemp;
+uint8_t* delta;
+unsigned char* colors;
 float resolution = 0.0;
 boolean needToUpdate = false;
 boolean heatup = false;
@@ -76,8 +77,14 @@ unsigned char info_available = 0;
 LPD8806 strip = LPD8806();
 
 void setup() {
+ 
+  xmem::begin(true);
   
-  XMCRA = _BV(SRE); //Enable external memory interface
+  currTemp = (uint8_t*) malloc(MAX_LEDS * sizeof(uint8_t));
+  delta = (uint8_t*) malloc(MAX_LEDS/2 * sizeof(uint8_t));
+  colors = (unsigned char*) malloc(MAX_LEDS * sizeof(unsigned char));
+
+  /*
   pinMode(38, OUTPUT);
   digitalWrite(38, LOW); //Enable RAM device
   
@@ -88,6 +95,7 @@ void setup() {
   digitalWrite(42, LOW);
   digitalWrite(43, LOW);
   digitalWrite(44, LOW);
+  */
   
   //Keeps the Arduino as Master in SPI communication
   pinMode(53, OUTPUT);
@@ -106,6 +114,11 @@ void setup() {
   uint8_t byte2 = (Serial.read() - 48);
   uint8_t byte3 = (Serial.read() - 48);
   uint8_t byte4 = (Serial.read() - 48);
+  
+  Serial.println(byte1);
+  Serial.println(byte2);
+  Serial.println(byte3);
+  Serial.println(byte4);
   num_leds = byte1*1000 + byte2*100 + byte3*10 + byte4;
  
   num_racks = num_leds / LEDS_PER_RACK;
@@ -116,7 +129,7 @@ void setup() {
   Serial.print("This is num pixels: ");
   Serial.println(strip.numPixels());
   Serial.flush();
-  
+    
   strip.begin();
 
   for(uint16_t i = 0; i < strip.numPixels(); i++)
@@ -144,6 +157,7 @@ void loop()
     {
         //Read ASCII byte from python script, convert to integer
         state = Serial.read() - 48;
+        Serial.println(state);
     }    
   }
   else if(state == METRIC_SETUP)
@@ -197,10 +211,10 @@ void loop()
         temp = temp << 1;
       }
 
-      Serial.print("Temp is: ");
-      Serial.println(temp);
-      Serial.print("Pixel is: ");
-      Serial.println(pixel);
+      //Serial.print("Temp is: ");
+      //Serial.println(temp);
+      //Serial.print("Pixel is: ");
+      //Serial.println(pixel);
 
 
       //Update the temperature array. Faster than trying to update each pixel as data becomes available 
@@ -242,10 +256,10 @@ void loop()
               heatup = true;
             }
 
-            Serial.print("Color diff: ");
-            Serial.println(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]));
-            Serial.print("Delta: ");
-            Serial.println(getDelta(pixelnum));
+            //Serial.print("Color diff: ");
+            //Serial.println(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]));
+            //Serial.print("Delta: ");
+            //Serial.println(getDelta(pixelnum));
 
             if(getCurrColor(colors[pixelnum]) - getPrevColor(colors[pixelnum]) != 0 && getDelta(pixelnum) != 0)
             {   
@@ -360,7 +374,7 @@ void loop()
 
 void pixelUpdate(int pixelnum, uint8_t j, int delta, boolean heatup)
 {  
-  Serial.println("IN PIXEL UPDATE");
+  //Serial.println("IN PIXEL UPDATE");
   num_iters = 128/delta + 1;
   
   int relativepixelnum = pixelnum % 110;
@@ -370,10 +384,10 @@ void pixelUpdate(int pixelnum, uint8_t j, int delta, boolean heatup)
   if(relativepixelnum < 26) crosspixel -= 6;
   
   if(j == 0) {
-  Serial.print("Pixelnum: ");
-  Serial.println(pixelnum);
-  Serial.print("Crosspixel: ");
-  Serial.println(crosspixel);
+  //Serial.print("Pixelnum: ");
+  //Serial.println(pixelnum);
+  //Serial.print("Crosspixel: ");
+  //Serial.println(crosspixel);
   }
   
   if(heatup)
